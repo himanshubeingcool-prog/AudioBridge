@@ -69,8 +69,10 @@ class AudioCapture:
         self._device_info: AudioDeviceInfo | None = None
         self._running = False
         self._thread: threading.Thread | None = None
+        # One queue per peer (fan-out) for multi-device; legacy single-queue for compat
         self._queue: queue.Queue[bytes] = queue.Queue(maxsize=30)
         self._async_queue: asyncio.Queue[bytes] | None = None
+        self._async_queues: list[asyncio.Queue[bytes]] = []
         self._loop: asyncio.AbstractEventLoop | None = None
         self._callbacks: list[Callable[[bytes], None]] = []
         self._frames_captured = 0
@@ -189,7 +191,9 @@ class AudioCapture:
 
         self._last_error = None
         self._loop = asyncio.get_running_loop()
-        self._async_queue = asyncio.Queue(maxsize=30)
+        # Small queue for lowest latency (5 frames = 100ms max live)
+        self._async_queue = asyncio.Queue(maxsize=5)
+        self._async_queues = []
 
         # Find loopback device
         loopback_info = self._find_best_loopback_device()
@@ -246,7 +250,8 @@ class AudioCapture:
         self._accum_lock = threading.Lock()
 
         pa_format = pyaudio.paInt16
-        frames_per_buffer = self.samples_per_frame  # 960 at 48kHz/20ms
+        # 10ms PortAudio buffer for lowest latency (WASAPI will use smallest stable)
+        frames_per_buffer = self.samples_per_frame // 2  # 480 at 48kHz/10ms
 
         def _callback(in_data, frame_count, time_info, status):
             if status:
@@ -272,27 +277,39 @@ class AudioCapture:
                             self._queue.put_nowait(frame_bytes)
                         except queue.Full:
                             pass
-                    # Also push to async queue if event loop available
-                    if self._loop and self._async_queue:
-                        # Use a wrapper to handle QueueFull inside the event loop thread
-                        def _safe_put(data=frame_bytes):
-                            try:
-                                self._async_queue.put_nowait(data)
-                            except (asyncio.QueueFull, queue.Full):
-                                # Drop oldest then retry
+                    # Fan-out to all per-peer async queues (multi-device) + legacy single queue
+                    if self._loop:
+                        def _fanout(data=frame_bytes):
+                            for q in list(self._async_queues):
                                 try:
-                                    self._async_queue.get_nowait()
-                                except Exception:
+                                    q.put_nowait(data)
+                                except (asyncio.QueueFull, queue.Full):
+                                    try:
+                                        q.get_nowait()
+                                    except Exception:
+                                        pass
+                                    try:
+                                        q.put_nowait(data)
+                                    except Exception:
+                                        pass
+                                except RuntimeError:
                                     pass
+                            # Also legacy single queue (for old tracks / tests)
+                            if self._async_queue is not None:
                                 try:
                                     self._async_queue.put_nowait(data)
-                                except Exception:
-                                    pass
-                            except RuntimeError:
-                                pass  # loop closed
+                                except (asyncio.QueueFull, queue.Full):
+                                    try:
+                                        self._async_queue.get_nowait()
+                                    except Exception:
+                                        pass
+                                    try:
+                                        self._async_queue.put_nowait(data)
+                                    except Exception:
+                                        pass
 
                         try:
-                            self._loop.call_soon_threadsafe(_safe_put)
+                            self._loop.call_soon_threadsafe(_fanout)
                         except RuntimeError:
                             pass
                     # Callbacks
@@ -362,6 +379,18 @@ class AudioCapture:
     # Reading
     # ------------------------------------------------------------------
 
+    def subscribe(self) -> asyncio.Queue[bytes]:
+        """Create a dedicated queue for a new peer (fan-out). Call unsubscribe on disconnect."""
+        q: asyncio.Queue[bytes] = asyncio.Queue(maxsize=5)
+        self._async_queues.append(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue[bytes]) -> None:
+        try:
+            self._async_queues.remove(q)
+        except ValueError:
+            pass
+
     def read_frame(self, timeout: float = 1.0) -> bytes | None:
         """Synchronous read of one 20ms frame. Returns None on timeout."""
         try:
@@ -370,11 +399,18 @@ class AudioCapture:
             return None
 
     async def read_frame_async(self, timeout: float = 1.0) -> bytes | None:
-        """Async read of one 20ms frame."""
+        """Async read of one 20ms frame (legacy single-consumer). Drains to newest."""
         if self._async_queue is None:
             return None
         try:
-            return await asyncio.wait_for(self._async_queue.get(), timeout=timeout)
+            frame = await asyncio.wait_for(self._async_queue.get(), timeout=timeout)
+            # Keep only newest for lowest latency
+            while not self._async_queue.empty():
+                try:
+                    frame = self._async_queue.get_nowait()
+                except Exception:
+                    break
+            return frame
         except (asyncio.TimeoutError, asyncio.QueueEmpty):
             return None
 

@@ -52,18 +52,3 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
 .pairing-status{font-size:11px;text-align:center;margin-top:8px;min-height:1.2em}
 .pairing-status.ok{color:var(--green)}
 .pairing-status.err{color:var(--red)}
-.devices-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.btn-refresh{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:8px;font-size:11px;cursor:pointer}
-.btn-refresh:hover{border-color:var(--accent);color:var(--text)}
-.devices-sub{font-size:11px;color:var(--muted);margin-bottom:10px}
-.devices-list{display:flex;flex-direction:column;gap:8px}
-.device-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card2);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color .15s}
-.device-item:hover{border-color:var(--accent2)}
-.device-item.is-self{border-color:var(--green);cursor:default}
-.device-item.skeleton{opacity:.6;cursor:default}
-.device-icon{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
-.device-info{flex:1;min-width:0}
-.device-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.device-meta{font-size:11px;color:var(--muted)}
-.device-badge{font-size:10px;font-weight:700;letter-spacing:0.06em;padding:3px 7px;border-radius:6px;background:var(--green);color:#0f1117}
-.device-badge.you{background:var(--card);border:1px solid var(--border);color:var(--muted)}

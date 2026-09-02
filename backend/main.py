@@ -170,14 +170,14 @@ async def api_discover():
         except Exception:
             return None
 
-    # Scan all 254 IPs with limited concurrency
-    sem = asyncio.Semaphore(30)
+    # Scan near-neighbors only (fast, low-impact) — 1..40 covers most home nets
+    sem = asyncio.Semaphore(20)
 
     async def bounded_check(ip):
         async with sem:
             return await check_ip(ip)
 
-    tasks = [bounded_check(f"{subnet}{i}") for i in range(1, 255)]
+    tasks = [bounded_check(f"{subnet}{i}") for i in range(1, 41)]
     results = await asyncio.gather(*tasks)
     devices = [r for r in results if r is not None]
     # Always include self

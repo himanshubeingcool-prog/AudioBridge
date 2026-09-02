@@ -32,9 +32,14 @@
   let audioCtx = null;
   let gainNode = null;
   let latencyTimer = null;
-  let token = new URLSearchParams(location.search).get("token") || localStorage.getItem("pps_token") || "";
+  // Always require code on Receive — ignore stored token (user wants mandatory code)
+  let token = new URLSearchParams(location.search).get("token") || "";
   let pairingCode = "";
   let role = localStorage.getItem("pps_role") || "receive";
+  // If token came via QR, consider paired immediately but still show code entry for manual
+  if (token) {
+    try { localStorage.setItem("pps_token", token); } catch {}
+  }
 
   function setRole(r) {
     role = r;
@@ -48,6 +53,8 @@
       pairingInputRow.style.display = "none";
       pairingSub.style.display = "block";
       if (pairingCode) pairingCodeEl.textContent = pairingCode.split("").join(" ");
+      btn.style.display = "none";
+      volRow.style.display = "none";
       startPeerPoll();
       if (pairingCode) {
         statusText.textContent = "Waiting for device — share your code";
@@ -56,16 +63,15 @@
     } else {
       roleHint.textContent = "This iPhone will play audio from your PC.";
       pairingLabel.textContent = "Enter Pairing Code";
+      btn.style.display = "block";
       if (peerPoll) { clearInterval(peerPoll); peerPoll = null; }
+      pairingCodeEl.textContent = "— — —";
+      pairingSub.textContent = "Get the 6-digit code from the sharing device";
+      pairingInputRow.style.display = "flex";
+      pairingSub.style.display = "block";
       if (paired) {
         pairingCodeEl.textContent = pairingCode.split("").join(" ");
-        pairingSub.textContent = "Paired — tap Start Speaker";
-        pairingSub.style.display = "block";
-        pairingInputRow.style.display = "none";
-      } else {
-        pairingCodeEl.textContent = "— — —";
-        pairingSub.textContent = "Get the 6-digit code from the sharing device";
-        pairingInputRow.style.display = "flex";
+        pairingSub.textContent = "Paired — tap Start Speaker (or re-enter code)";
       }
     }
   }
@@ -102,18 +108,14 @@
         const j = await r.json();
         if (j.pairing_code) {
           pairingCode = j.pairing_code;
-          if (token) {
-            paired = true;
-            pairingStatus.textContent = "";
-            pairingStatus.className = "pairing-status";
-          }
           setRole(role);
         }
         if (j.lan_ip) pcIpEl.textContent = j.lan_ip + (j.all_ips && j.all_ips.length > 1 ? ` (+${j.all_ips.length - 1} more)` : "");
         else if (j.all_ips && j.all_ips.length) pcIpEl.textContent = j.all_ips[0];
       }
-      if (token) {
-        const qrR = await fetch(`/api/qr?token=${encodeURIComponent(token)}`);
+      // QR only on Share (Receive uses code)
+      if (pairingCode && role === "share") {
+        const qrR = await fetch(`/api/qr?code=${encodeURIComponent(pairingCode)}`);
         if (qrR.ok) {
           const qj = await qrR.json();
           if (qj.qr) {
@@ -122,86 +124,24 @@
             qrCard.style.display = "block";
           }
         }
-      } else if (pairingCode) {
-        const qrR = await fetch(`/api/qr?code=${encodeURIComponent(pairingCode)}`);
-        if (qrR.ok) {
-          const qj = await qrR.json();
-          if (qj.qr) {
-            qrImg.src = qj.qr;
-            qrUrl.textContent = qj.url;
-            if (role === "share") qrCard.style.display = "block";
-          }
-        }
       }
     } catch {}
-    if (token && !paired) {
-      paired = true;
-      setRole(role);
+    // Mandatory code on Receive — never auto-pair from stored token
+    paired = false;
+    pairingStatus.textContent = "";
+    pairingStatus.className = "pairing-status";
+    if (role === "receive") {
+      statusText.textContent = "Enter pairing code, then tap Connect";
     }
-    if (!paired && role === "receive") {
-      statusText.textContent = "Enter pairing code, then tap Start";
-    } else if (paired && role === "receive") {
-      statusText.textContent = "Tap Start Speaker to begin audio";
-    }
-    // Share side: show peers immediately
     if (role === "share") startPeerPoll();
   }
 
-  // Devices on this WiFi — scan via backend /api/discover
-  const devicesList = $("devices-list");
-  const devicesSub = $("devices-sub");
-  const devicesSubnet = $("devices-subnet");
-  const btnRefresh = $("btn-refresh");
-
-  async function scanDevices() {
-    devicesList.innerHTML = '<div class="device-item skeleton">Scanning…</div>';
-    devicesSub.textContent = "Scanning…";
-    try {
-      const r = await fetch("/api/discover");
-      if (!r.ok) throw new Error(r.status);
-      const j = await r.json();
-      devicesSubnet.textContent = j.subnet || "—";
-      devicesSub.textContent = `WiFi ${j.subnet || ""} — ${j.devices.length} device(s)`;
-      if (!j.devices.length) {
-        devicesList.innerHTML = '<div class="device-item skeleton">No other PC Speaker devices on this WiFi. Start one on another PC.</div>';
-        return;
-      }
-      devicesList.innerHTML = "";
-      j.devices.forEach(d => {
-        const div = document.createElement("div");
-        div.className = "device-item" + (d.is_self ? " is-self" : "");
-        div.innerHTML = `<div class="device-icon">▶</div>
-          <div class="device-info"><div class="device-name">${d.hostname}</div><div class="device-meta">${d.ip}:${d.port}${d.pairing_code ? " · code " + d.pairing_code : ""}</div></div>
-          <span class="device-badge ${d.is_self ? "you" : ""}">${d.is_self ? "YOU" : "TAP"}</span>`;
-        if (!d.is_self) {
-          div.addEventListener("click", () => {
-            // Auto-fill code and connect
-            if (d.pairing_code) {
-              codeInput.value = d.pairing_code;
-              setRole("receive");
-              btnConnect.click();
-            }
-          });
-        }
-        devicesList.appendChild(div);
-      });
-    } catch (e) {
-      devicesList.innerHTML = '<div class="device-item skeleton">Scan failed — check server running and WiFi.</div>';
-      devicesSub.textContent = "Scan failed";
-    }
-  }
-
-  btnRefresh.addEventListener("click", scanDevices);
-
-  // Auto-detect role: if we have ?token in URL, likely this device was the receiver via QR
+  // Auto-detect role
   const urlRole = new URLSearchParams(location.search).get("role");
   if (urlRole === "share" || urlRole === "receive") role = urlRole;
-  else if (token) role = "receive";
+  else if (token) { role = "receive"; paired = true; pairingCode = token; /* token is legacy, treat as paired */ }
   setRole(role);
   fetchPairing();
-  // Initial scan after pairing fetch, then every 15s
-  setTimeout(scanDevices, 800);
-  setInterval(scanDevices, 15000);
 
   btnConnect.addEventListener("click", async () => {
     const code = codeInput.value.trim().replace(/\D/g, "");
@@ -279,9 +219,9 @@
   });
 
   async function start() {
-    if (!paired && !token) {
-      infoNote.textContent = "Enter the 6-digit pairing code first, then tap Connect.";
-      pairingStatus.textContent = "Code required";
+    if (!paired) {
+      infoNote.textContent = "Tap Connect after entering the 6-digit code.";
+      pairingStatus.textContent = "Not paired — tap Connect";
       pairingStatus.className = "pairing-status err";
       codeInput.focus();
       return;
@@ -303,17 +243,17 @@
 
     pc.ontrack = (e) => {
       const stream = e.streams[0] || new MediaStream([e.track]);
-      // Reduce jitter buffer for low latency (default ~100ms, we want ~20-40ms on LAN)
+      // Lowest latency: tiny jitter buffer + raw playout
       try {
         const recv = pc.getReceivers().find(r => r.track && r.track.kind === "audio");
-        if (recv && recv.jitterBufferTarget !== undefined) recv.jitterBufferTarget = 0.04;
-        // Also try via transceiver
+        if (recv && recv.jitterBufferTarget !== undefined) recv.jitterBufferTarget = 0.02;
         pc.getTransceivers().forEach(t => {
-          if (t.receiver && t.receiver.jitterBufferTarget !== undefined) t.receiver.jitterBufferTarget = 0.04;
+          if (t.receiver && t.receiver.jitterBufferTarget !== undefined) t.receiver.jitterBufferTarget = 0.02;
+          if (t.receiver && t.receiver.playoutDelayHint !== undefined) t.receiver.playoutDelayHint = 0.02;
         });
+        e.track.playoutDelayHint = 0.02;
       } catch {}
       audioEl.srcObject = stream;
-      // Hint low latency
       try { audioEl.preservesPitch = false; } catch {}
       audioEl.play().catch((err) => {
         console.warn("audio play failed", err);

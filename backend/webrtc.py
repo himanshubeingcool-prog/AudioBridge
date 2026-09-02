@@ -20,9 +20,7 @@ logger = logging.getLogger(__name__)
 
 class LoopbackAudioTrack(MediaStreamTrack):
     """Audio track that pulls 20ms PCM frames from AudioCapture and emits AudioFrames.
-
-    aiortc calls recv() to get the next frame to send over RTP/Opus.
-    We resample to silence if no audio is available (keeps the stream alive).
+    Each track gets its own fan-out queue so multiple iPhones can listen simultaneously.
     """
 
     kind = "audio"
@@ -30,16 +28,33 @@ class LoopbackAudioTrack(MediaStreamTrack):
     def __init__(self, capture: AudioCapture) -> None:
         super().__init__()
         self._capture = capture
+        self._queue = capture.subscribe()  # dedicated low-latency queue (5 frames)
         self._timestamp = 0
-        # 48kHz => 960 samples per 20ms, timescale 48000
         self._sample_rate = TARGET_SAMPLE_RATE
         self._channels = TARGET_CHANNELS
         self._samples_per_frame = SAMPLES_PER_FRAME
         self._frame_duration = fractions.Fraction(1, self._sample_rate) * self._samples_per_frame
         self._start_time: float | None = None
 
+    def stop(self):
+        # Unsubscribe on track stop
+        try:
+            self._capture.unsubscribe(self._queue)
+        except Exception:
+            pass
+        super().stop()
+
     async def recv(self) -> AudioFrame:
-        frame_bytes = await self._capture.read_frame_async(timeout=0.05)
+        # Per-peer queue, drain to newest for lowest latency, no share conflict
+        try:
+            frame_bytes = await asyncio.wait_for(self._queue.get(), timeout=0.05)
+            while not self._queue.empty():
+                try:
+                    frame_bytes = self._queue.get_nowait()
+                except Exception:
+                    break
+        except (asyncio.TimeoutError, asyncio.QueueEmpty):
+            frame_bytes = None
 
         if frame_bytes is None:
             pcm = np.zeros((self._samples_per_frame * self._channels,), dtype=np.int16)
@@ -82,12 +97,15 @@ class PeerManager:
         track = LoopbackAudioTrack(self._capture)
 
         sender = pc.addTrack(track)
-        # Prefer Opus (high quality where negotiated; fallback to default is fine)
+        # Raw/original voice: Opus at max quality that Safari still accepts
+        # 510k is Opus max, 48000 stereo, keep params minimal to not break negotiation
         try:
             codecs = RTCRtpSender.getCapabilities("audio").codecs
             opus = [c for c in codecs if c.mimeType == "audio/opus"]
+            for c in opus:
+                c.parameters["stereo"] = "1"
+                c.parameters["maxaveragebitrate"] = "510000"
             if opus:
-                # Keep defaults - high bitrate tweaks broke Safari negotiation
                 sender.transceiver.setCodecPreferences(opus)
         except Exception as e:
             logger.debug("setCodecPreferences failed: %s", e)
@@ -111,7 +129,12 @@ class PeerManager:
 
     async def remove_peer(self, peer_id: str) -> None:
         pc = self._peers.pop(peer_id, None)
-        self._tracks.pop(peer_id, None)
+        track = self._tracks.pop(peer_id, None)
+        if track is not None:
+            try:
+                track.stop()
+            except Exception:
+                pass
         if pc is not None:
             try:
                 await pc.close()
