@@ -4,24 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>PC Phone Speaker</title>
+<title>PC Phone Speaker — STUDIO HD</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="app">
   <header class="header">
-    <div class="logo">◉ PC PHONE SPEAKER</div>
+    <div class="logo">◉ PC PHONE SPEAKER <span class="pro-badge">STUDIO HD</span></div>
     <div class="pc-status"><span class="dot dot-online"></span> PC Online</div>
   </header>
 
-  <!-- Role selector -->
   <div class="role-tabs">
     <button class="role-tab active" data-role="receive" id="tab-receive">Receive Audio</button>
     <button class="role-tab" data-role="share" id="tab-share">Share Audio</button>
   </div>
   <div class="role-hint" id="role-hint">This iPhone will play audio from your PC.</div>
 
-  <!-- Pairing code (visible in Share mode, or after pairing in Receive) -->
   <div class="card" id="pairing-card">
     <div class="card-label" id="pairing-label">Pairing Code</div>
     <div class="pairing-code" id="pairing-code">— — —</div>
@@ -36,22 +34,10 @@
   <div class="card">
     <div class="card-label">Connection</div>
     <div class="conn-grid">
-      <div class="conn-item">
-        <span class="conn-key">PC</span>
-        <span class="conn-val" id="pc-ip">—</span>
-      </div>
-      <div class="conn-item">
-        <span class="conn-key">Network</span>
-        <span class="conn-val">Local Wi-Fi</span>
-      </div>
-      <div class="conn-item">
-        <span class="conn-key">Audio</span>
-        <span class="conn-val" id="audio-info">48 kHz Stereo</span>
-      </div>
-      <div class="conn-item">
-        <span class="conn-key">Latency</span>
-        <span class="conn-val" id="latency">—</span>
-      </div>
+      <div class="conn-item"><span class="conn-key">PC</span><span class="conn-val" id="pc-ip">—</span></div>
+      <div class="conn-item"><span class="conn-key">Network</span><span class="conn-val">Local Wi-Fi</span></div>
+      <div class="conn-item"><span class="conn-key">Audio</span><span class="conn-val" id="audio-info">48 kHz Stereo • HD</span></div>
+      <div class="conn-item"><span class="conn-key">Latency</span><span class="conn-val latency-pro" id="latency">—</span></div>
     </div>
   </div>
 
@@ -60,9 +46,7 @@
       <span class="status-dot" id="status-dot"></span>
       <span class="status-text" id="status-text">Enter pairing code, then tap Start</span>
     </div>
-    <div class="device-row" id="device-row" style="display:none">
-      Connected: <strong id="device-name">iPhone</strong>
-    </div>
+    <div class="device-row" id="device-row" style="display:none">Connected: <strong id="device-name">iPhone</strong></div>
   </div>
 
   <audio id="remote-audio" autoplay playsinline></audio>
@@ -75,23 +59,46 @@
     <span class="vol-val" id="vol-val">100%</span>
   </div>
 
+  <!-- STUDIO HD: 5-band EQ + Spectrum -->
+  <div class="card eq-card" id="eq-card" style="display:none">
+    <div class="eq-header">
+      <span class="card-label" style="margin:0">STUDIO EQ • 5-BAND</span>
+      <div class="eq-presets">
+        <button class="eq-preset active" data-preset="flat">Flat</button>
+        <button class="eq-preset" data-preset="bass">Bass+</button>
+        <button class="eq-preset" data-preset="vocal">Vocal</button>
+        <button class="eq-preset" data-preset="bright">Bright</button>
+        <button class="eq-preset" data-preset="warm">Warm</button>
+      </div>
+    </div>
+    <canvas id="spectrum" width="440" height="90" class="spectrum"></canvas>
+    <div class="meters">
+      <div class="meter"><span class="meter-label">L</span><div class="meter-bar"><div class="meter-fill" id="meter-l"></div></div></div>
+      <div class="meter"><span class="meter-label">R</span><div class="meter-bar"><div class="meter-fill" id="meter-r"></div></div></div>
+    </div>
+    <div class="eq-bands" id="eq-bands"></div>
+    <div class="eq-footer">
+      <label class="eq-bypass"><input type="checkbox" id="eq-bypass"> Bypass EQ (lowest latency)</label>
+      <span class="eq-hint">HD Opus 510k • 10ms buffer • 20ms jitter</span>
+    </div>
+  </div>
+
   <div class="info-card">
-    <div class="info-title" id="info-title">How to use</div>
-    <ol class="info-list" id="info-list">
-      <li><b>Share:</b> On your PC browser, tap <b>Share Audio</b> to see the pairing code.</li>
-      <li><b>Receive:</b> On your iPhone, tap <b>Receive Audio</b>, enter the 6-digit code, tap Connect.</li>
-      <li>Then tap <b>Start Speaker</b> — PC audio will play from your iPhone.</li>
+    <div class="info-title">How to use</div>
+    <ol class="info-list">
+      <li><b>Share:</b> PC → Share Audio → note 6-digit code</li>
+      <li><b>Receive:</b> iPhone → Receive → enter code → Connect → Start Speaker</li>
     </ol>
     <div class="info-note" id="info-note"></div>
   </div>
 
   <div class="qr-card" id="qr-card" style="display:none">
-    <div class="qr-title">QR Code (alternative to code)</div>
+    <div class="qr-title">QR Code</div>
     <img id="qr-img" alt="QR Code" style="max-width:220px">
     <div class="qr-url" id="qr-url"></div>
   </div>
 
-  <footer class="footer">Local network only · No cloud · WebRTC via Opus</footer>
+  <footer class="footer">STUDIO HD • 48kHz Stereo • Opus 510k • Multi-device • No cloud</footer>
 </div>
 <script src="app.js"></script>
 </body>
