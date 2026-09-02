@@ -1,0 +1,13 @@
+{
+  "name": "pc-phone-speaker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Use your iPhone as a wireless speaker for your Windows PC via WASAPI loopback + WebRTC",
+  "scripts": {
+    "dev": "python -m backend.main",
+    "start": "python -m backend.main",
+    "diagnostic": "python -m backend.main --diagnostic",
+    "install:py": "pip install -r requirements.txt",
+    "test": "pytest tests/ -v"
+  }
+}

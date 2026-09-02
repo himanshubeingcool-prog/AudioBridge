@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>PC Phone Speaker</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="logo">◉ PC PHONE SPEAKER</div>
+    <div class="pc-status"><span class="dot dot-online"></span> PC Online</div>
+  </header>
+
+  <!-- Role selector -->
+  <div class="role-tabs">
+    <button class="role-tab active" data-role="receive" id="tab-receive">Receive Audio</button>
+    <button class="role-tab" data-role="share" id="tab-share">Share Audio</button>
+  </div>
+  <div class="role-hint" id="role-hint">This iPhone will play audio from your PC.</div>
+
+  <!-- Pairing code (visible in Share mode, or after pairing in Receive) -->
+  <div class="card" id="pairing-card">
+    <div class="card-label" id="pairing-label">Pairing Code</div>
+    <div class="pairing-code" id="pairing-code">— — —</div>
+    <div class="pairing-sub" id="pairing-sub">Enter this code on the receiving device</div>
+    <div class="pairing-row" id="pairing-input-row" style="display:none">
+      <input type="text" id="code-input" placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="off" class="code-input">
+      <button class="btn btn-small" id="btn-connect">Connect</button>
+    </div>
+    <div class="pairing-status" id="pairing-status"></div>
+  </div>
+
+  <!-- Available devices on this WiFi -->
+  <div class="card" id="devices-card">
+    <div class="devices-header">
+      <span class="card-label" style="margin:0">Available on this WiFi</span>
+      <button class="btn-refresh" id="btn-refresh" title="Refresh">↻ Refresh</button>
+    </div>
+    <div class="devices-sub" id="devices-sub">Scanning <span id="devices-subnet">—</span>…</div>
+    <div class="devices-list" id="devices-list">
+      <div class="device-item skeleton">Scanning…</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Connection</div>
+    <div class="conn-grid">
+      <div class="conn-item">
+        <span class="conn-key">PC</span>
+        <span class="conn-val" id="pc-ip">—</span>
+      </div>
+      <div class="conn-item">
+        <span class="conn-key">Network</span>
+        <span class="conn-val">Local Wi-Fi</span>
+      </div>
+      <div class="conn-item">
+        <span class="conn-key">Audio</span>
+        <span class="conn-val" id="audio-info">48 kHz Stereo</span>
+      </div>
+      <div class="conn-item">
+        <span class="conn-key">Latency</span>
+        <span class="conn-val" id="latency">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="status-row">
+      <span class="status-dot" id="status-dot"></span>
+      <span class="status-text" id="status-text">Enter pairing code, then tap Start</span>
+    </div>
+    <div class="device-row" id="device-row" style="display:none">
+      Connected: <strong id="device-name">iPhone</strong>
+    </div>
+  </div>
+
+  <audio id="remote-audio" autoplay playsinline></audio>
+
+  <button class="btn btn-start" id="btn-toggle">START SPEAKER</button>
+
+  <div class="volume-row" id="volume-row" style="display:none">
+    <span class="vol-label">🔊</span>
+    <input type="range" id="volume" min="0" max="100" value="100" class="vol-slider">
+    <span class="vol-val" id="vol-val">100%</span>
+  </div>
+
+  <div class="info-card">
+    <div class="info-title" id="info-title">How to use</div>
+    <ol class="info-list" id="info-list">
+      <li><b>Share:</b> On your PC browser, tap <b>Share Audio</b> to see the pairing code.</li>
+      <li><b>Receive:</b> On your iPhone, tap <b>Receive Audio</b>, enter the 6-digit code, tap Connect.</li>
+      <li>Then tap <b>Start Speaker</b> — PC audio will play from your iPhone.</li>
+    </ol>
+    <div class="info-note" id="info-note"></div>
+  </div>
+
+  <div class="qr-card" id="qr-card" style="display:none">
+    <div class="qr-title">QR Code (alternative to code)</div>
+    <img id="qr-img" alt="QR Code" style="max-width:220px">
+    <div class="qr-url" id="qr-url"></div>
+  </div>
+
+  <footer class="footer">Local network only · No cloud · WebRTC via Opus</footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
